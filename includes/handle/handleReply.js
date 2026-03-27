@@ -1,44 +1,67 @@
 module.exports = function ({ api, models, Users, Threads, Currencies }) {
     return function ({ event }) {
+        // Fast exit: if it's not a reply, stop immediately
         if (!event.messageReply) return;
-        const { handleReply, commands } = global.client
+        
+        const { handleReply, commands } = global.client;
+        
+        // Fast exit: if there are no pending replies in the system, stop
+        if (!handleReply || handleReply.length === 0) return;
+
         const { messageID, threadID, messageReply } = event;
-        if (handleReply.length !== 0) {
-            const indexOfHandle = handleReply.findIndex(e => e.messageID == messageReply.messageID);
-            if (indexOfHandle < 0) return;
-            const indexOfMessage = handleReply[indexOfHandle];
-            const handleNeedExec = commands.get(indexOfMessage.name);
-            if (!handleNeedExec) return api.sendMessage(global.getText('handleReply', 'missingValue'), threadID, messageID);
-            try {
-                var getText2;
-                if (handleNeedExec.languages && typeof handleNeedExec.languages == 'object') 
-                	getText2 = (...value) => {
+
+        // 🚀 OPTIMIZATION: Use .find() directly to grab the object in one step
+        const indexOfMessage = handleReply.find(e => e.messageID === messageReply.messageID);
+        if (!indexOfMessage) return;
+
+        const handleNeedExec = commands.get(indexOfMessage.name);
+        
+        if (!handleNeedExec) {
+            return api.sendMessage(global.getText('handleReply', 'missingValue'), threadID, messageID);
+        }
+
+        try {
+            let getText2 = () => {};
+
+            // Language processing setup
+            if (handleNeedExec.languages && typeof handleNeedExec.languages === 'object') {
+                getText2 = (...value) => {
                     const reply = handleNeedExec.languages || {};
-                    if (!reply.hasOwnProperty(global.config.language)) 
-                    	return api.sendMessage(global.getText('handleCommand', 'notFoundLanguage', handleNeedExec.config.name), threadID, messengeID);
-                    var lang = handleNeedExec.languages[global.config.language][value[0]] || '';
-                    for (var i = value.length; i > -0x4 * 0x4db + 0x6d * 0x55 + -0x597 * 0x3; i--) {
+                    const langConfig = global.config.language;
+
+                    if (!reply.hasOwnProperty(langConfig)) {
+                        // 🛠️ BUG FIX: 'messengeID' typo changed to 'messageID' to prevent crash
+                        return api.sendMessage(global.getText('handleCommand', 'notFoundLanguage', handleNeedExec.config.name), threadID, messageID);
+                    }
+
+                    let lang = reply[langConfig][value[0]] || '';
+                    
+                    // 🧹 DE-OBFUSCATED: Cleaned up the weird hex math that just equaled 0
+                    for (let i = value.length; i > 0; i--) {
                         const expReg = RegExp('%' + i, 'g');
                         lang = lang.replace(expReg, value[i]);
                     }
                     return lang;
                 };
-                else getText2 = () => {};
-                const Obj = {};
-                Obj.api = api
-                Obj.event = event 
-                Obj.models = models
-                Obj.Users = Users
-                Obj.Threads = Threads 
-                Obj.Currencies = Currencies
-                Obj.handleReply = indexOfMessage
-                Obj.models = models
-                Obj.getText = getText2
-                handleNeedExec.handleReply(Obj);
-                return;
-            } catch (error) {
-                return api.sendMessage(global.getText('handleReply', 'executeError', error), threadID, messageID);
             }
+
+            // 🚀 OPTIMIZATION: Clean object creation and removed duplicate 'models' assignment
+            const contextObj = {
+                api,
+                event,
+                models,
+                Users,
+                Threads,
+                Currencies,
+                handleReply: indexOfMessage,
+                getText: getText2
+            };
+
+            // Execute the reply handler
+            handleNeedExec.handleReply(contextObj);
+            
+        } catch (error) {
+            return api.sendMessage(global.getText('handleReply', 'executeError', error.message || error), threadID, messageID);
         }
     };
-}
+};
