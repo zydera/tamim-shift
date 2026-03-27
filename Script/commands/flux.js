@@ -1,156 +1,86 @@
 const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
 
 module.exports.config = {
   name: "flux",
-  version: "3.0",
+  version: "4.0",
   hasPermssion: 0,
   credits: "Mahim",
-  description: "Generate 1:1 FLUX image",
+  description: "Generate highly realistic 4k images with Cloudflare FLUX",
   commandCategory: "image generator",
-  usage: ".flux [prompt]\n.flux [prompt] --ratio 1:1",
+  usage: ".flux [prompt]",
   countDown: 15
 };
 
 module.exports.run = async ({ event, args, api }) => {
-  const baseURL = "https://queue.fal.run/fal-ai/flux/schnell";
-  const apiKey = "4e85d555-e40b-4756-8a53-1c8f06fab60e:82d65618dec93032cb5ab620961a72a7";
+  // Cloudflare Credentials
+  const ACCOUNT_ID = "39eea946c2c2d4464d6e48ac25a8039a";
+  const API_TOKEN = "TxNUt77kyLODkq-c5PbveqJtlxVuOWV9N5sPKJz6"; 
+  
+  // FLUX-1-Schnell for 4K Photorealism
+  const MODEL = "@cf/black-forest-labs/flux-1-schnell";
+  const baseURL = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/ai/run/${MODEL}`;
 
   try {
     if (!args.length) {
       return api.sendMessage(
-        "Please enter a prompt.\nExample: .flux anime boy in neon city",
+        "Please enter a prompt.\n\nExamples:\n.flux a photorealistic cat\n.flux highly detailed nature landscape",
         event.threadID,
         event.messageID
       );
     }
 
     const fullInput = args.join(" ").trim();
+    let promptText = fullInput;
 
-    const [prompt, ratioRaw = "1:1"] = fullInput.includes("--ratio")
-      ? fullInput.split("--ratio").map((s) => s.trim())
-      : [fullInput, "1:1"];
-
-    if (!prompt) {
-      return api.sendMessage(
-        "Prompt is missing.\nExample: .flux cat astronaut --ratio 1:1",
-        event.threadID,
-        event.messageID
-      );
+    // Safely ignore ratio parameters since Cloudflare FLUX only does 1024x1024 squares
+    if (fullInput.includes("--")) {
+      promptText = fullInput.split("--")[0].trim();
     }
 
-    let image_size = "square";
-    const ratio = ratioRaw.toLowerCase();
+    // Force realism by injecting hidden high-quality photography tags
+    const realisticPrompt = promptText + ", highly detailed, photorealistic, extreme realism, 4k resolution, masterpiece";
 
-    if (ratio === "1:1" || ratio === "square" || ratio === "1024x1024") {
-      image_size = "square";
-    } else if (ratio === "16:9" || ratio === "landscape") {
-      image_size = "landscape_16_9";
-    } else if (ratio === "9:16" || ratio === "portrait") {
-      image_size = "portrait_16_9";
-    } else if (ratio === "4:3") {
-      image_size = "landscape_4_3";
-    } else if (ratio === "3:4") {
-      image_size = "portrait_4_3";
-    }
-
-    const startTime = Date.now();
-
+    // Stylish fancy font loading message with requested emojis
     const waitMessage = await api.sendMessage(
-      "Generating image, please wait...",
+      `𝐆𝐞𝐧𝐞𝐫𝐚𝐭𝐢𝐧𝐠 𝐑𝐞𝐚𝐥𝐢𝐬𝐭𝐢𝐜 𝟒𝐊 𝐈𝐦𝐚𝐠𝐞... 🍒🍓 ‧₊˚🩰🍃\n\n➭ 𝐏𝐫𝐨𝐦𝐩𝐭: ${promptText}`,
       event.threadID
     );
 
     api.setMessageReaction("⌛", event.messageID, () => {}, true);
 
+    // Call Cloudflare API (Getting the standard JSON response)
     const submit = await axios.post(
       baseURL,
       {
-        prompt,
-        image_size,
-        num_images: 1,
-        num_inference_steps: 4,
-        enable_safety_checker: true
+        prompt: realisticPrompt,
+        steps: 8 // Max steps for the highest quality output
       },
       {
         headers: {
-          Authorization: `Key ${apiKey}`,
-          "Content-Type": "application/json",
-          "User-Agent": "MiraiBot-Flux/3.0"
+          Authorization: `Bearer ${API_TOKEN}`,
+          "Content-Type": "application/json"
         },
-        timeout: 30000
+        timeout: 60000 
       }
     );
 
-    const statusUrl = submit.data?.status_url;
-    const responseUrl = submit.data?.response_url;
-
-    if (!statusUrl || !responseUrl) {
-      api.setMessageReaction("❌", event.messageID, () => {}, true);
-      if (waitMessage?.messageID) api.unsendMessage(waitMessage.messageID);
-      return api.sendMessage(
-        "Failed to start image generation.",
-        event.threadID,
-        event.messageID
-      );
+    // Extract the Base64 image string from Cloudflare's JSON response
+    const base64Image = submit.data?.result?.image;
+    
+    if (!base64Image) {
+      throw new Error("No image data returned from Cloudflare.");
     }
 
-    let result = null;
+    // Convert the Base64 text back into a real, uncorrupted binary image buffer
+    const imageBuffer = Buffer.from(base64Image, "base64");
 
-    for (let i = 0; i < 30; i++) {
-      const check = await axios.get(statusUrl, {
-        headers: {
-          Authorization: `Key ${apiKey}`,
-          "User-Agent": "MiraiBot-Flux/3.0"
-        },
-        timeout: 20000
-      });
-
-      if (check.data?.status === "COMPLETED") {
-        const out = await axios.get(responseUrl, {
-          headers: {
-            Authorization: `Key ${apiKey}`,
-            "User-Agent": "MiraiBot-Flux/3.0"
-          },
-          timeout: 20000
-        });
-        result = out.data;
-        break;
-      }
-
-      if (check.data?.status === "FAILED") {
-        api.setMessageReaction("❌", event.messageID, () => {}, true);
-        if (waitMessage?.messageID) api.unsendMessage(waitMessage.messageID);
-        return api.sendMessage(
-          "Image generation failed.",
-          event.threadID,
-          event.messageID
-        );
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-
-    const imageUrl = result?.images?.[0]?.url;
-
-    if (!imageUrl) {
-      api.setMessageReaction("❌", event.messageID, () => {}, true);
-      if (waitMessage?.messageID) api.unsendMessage(waitMessage.messageID);
-      return api.sendMessage(
-        "No image was returned.",
-        event.threadID,
-        event.messageID
-      );
-    }
-
-    const imageResponse = await axios.get(imageUrl, {
-      responseType: "stream",
-      headers: {
-        "User-Agent": "MiraiBot-Flux/3.0"
-      },
-      timeout: 30000
-    });
-
-    const timeTaken = ((Date.now() - startTime) / 1000).toFixed(2);
+    // Create a temporary file path
+    const tempPath = path.join(__dirname, `flux_temp_${Date.now()}.png`);
+    
+    // Save the actual image to the folder
+    fs.writeFileSync(tempPath, imageBuffer);
 
     api.setMessageReaction("✅", event.messageID, () => {}, true);
 
@@ -158,19 +88,26 @@ module.exports.run = async ({ event, args, api }) => {
       api.unsendMessage(waitMessage.messageID);
     }
 
+    // Send the file stream to Facebook, then delete the file to save server space
     return api.sendMessage(
       {
-        body: "",
-        attachment: imageResponse.data
+        attachment: fs.createReadStream(tempPath)
       },
       event.threadID,
+      () => {
+        if (fs.existsSync(tempPath)) {
+          fs.unlinkSync(tempPath);
+        }
+      },
       event.messageID
     );
+
   } catch (e) {
-    console.error(e?.response?.data || e.message || e);
+    console.error("Flux API Error:", e?.response?.data || e.message);
     api.setMessageReaction("❌", event.messageID, () => {}, true);
+    
     return api.sendMessage(
-      "Error: " + (e?.response?.data?.detail || e.message),
+      "❌ 𝐄𝐫𝐫𝐨𝐫: Failed to generate image. Please try a different prompt or wait a moment.",
       event.threadID,
       event.messageID
     );
