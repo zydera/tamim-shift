@@ -100,19 +100,19 @@ module.exports.run = async function ({ api, event }) {
     else if (percent <= 95) vibe = "Almost perfect";
     else vibe = "Perfect match";
 
-    const file1 = `${cacheDir}/pair_${targetID}.png`;
-    const file2 = `${cacheDir}/pair_${event.senderID}.png`;
+    const file1 = `${cacheDir}/pair_${event.senderID}.png`;
+    const file2 = `${cacheDir}/pair_${targetID}.png`;
 
     const avatar1 = (
       await axios.get(
-        `https://graph.facebook.com/${targetID}/picture?height=720&width=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
+        `https://graph.facebook.com/${event.senderID}/picture?height=720&width=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
         { responseType: "arraybuffer" }
       )
     ).data;
 
     const avatar2 = (
       await axios.get(
-        `https://graph.facebook.com/${event.senderID}/picture?height=720&width=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
+        `https://graph.facebook.com/${targetID}/picture?height=720&width=720&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`,
         { responseType: "arraybuffer" }
       )
     ).data;
