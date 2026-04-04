@@ -1,79 +1,71 @@
-module.exports.config = {
-	name: "toilet",
-	version: "1.0.1",
-	hasPermssion: 0,
-	credits: "𝐂𝐘𝐁𝐄𝐑 ☢️_𖣘 -𝐁𝐎𝐓 ⚠️ 𝑻𝑬𝑨𝑴_ ☢️",
-	description: "Toilet 🚽",
-	commandCategory: "Image",
-	usages: "rank",
-	cooldowns: 5,
-	dependencies: {
-	  "fs-extra": "",
-	  "axios": "",
-	  "canvas" :"",
-	  "jimp": ""
-	}
+const axios = require("axios");
+const fs = require("fs");
+const path = require("path");
+
+const baseApiUrl = async () => {
+  const base = await axios.get(
+    "https://raw.githubusercontent.com/mahmudx7/HINATA/main/baseApiUrl.json"
+  );
+  return base.data.mahmud;
 };
 
-module.exports.onLoad = async() => {
-    const { resolve } = global.nodemodule["path"];
-    const { existsSync, mkdirSync } = global.nodemodule["fs-extra"];
-    const { downloadFile } = global.utils;
-    const dirMaterial = __dirname + `/cache/`;
-    const path = resolve(__dirname, 'cache', 'toilet.png');
-    if (!existsSync(dirMaterial + "")) mkdirSync(dirMaterial, { recursive: true });
-    if (!existsSync(path)) await downloadFile("https://i.imgur.com/BtSlsSS.jpg", path);
+module.exports = {
+  config: {
+    name: "toilet",
+    version: "2.0",
+    author: "MAHIM ISLAM",
+    role: 0,
+    category: "fun",
+    cooldown: 10,
+    guide: "[mention/reply/UID]",
+  },
 
-}
+  onStart: async function ({ api, event, args }) {
+    const { senderID, mentions, threadID, messageID, messageReply } = event;
 
-async function makeImage({ one, two }) {
-    const fs = global.nodemodule["fs-extra"];
-    const path = global.nodemodule["path"];
-    const axios = global.nodemodule["axios"]; 
-    const jimp = global.nodemodule["jimp"];
-    const __root = path.resolve(__dirname, "cache");
+    let id;
 
-    let hon_img = await jimp.read(__root + "/toilet.png");
-    let pathImg = __root + `/toilet_${one}_${two}.png`;
-    let avatarOne = __root + `/avt_${one}.png`;
-    let avatarTwo = __root + `/avt_${two}.png`;
-    
-    let getAvatarOne = (await axios.get(`https://graph.facebook.com/${one}/picture?width=512&height=512&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`, { responseType: 'arraybuffer' })).data;
-    fs.writeFileSync(avatarOne, Buffer.from(getAvatarOne, 'utf-8'));
-    
-    let getAvatarTwo = (await axios.get(`https://graph.facebook.com/${two}/picture?width=512&height=512&access_token=6628568379%7Cc1e620fa708a1d5696fb991c1bde5662`, { responseType: 'arraybuffer' })).data;
-    fs.writeFileSync(avatarTwo, Buffer.from(getAvatarTwo, 'utf-8'));
-    
-    let circleOne = await jimp.read(await circle(avatarOne));
-    let circleTwo = await jimp.read(await circle(avatarTwo));
-    hon_img.resize(292, 345).composite(circleOne.resize(70, 70), 100, 200).composite(circleTwo.resize(70, 70), 100, 200);
-    
-    let raw = await hon_img.getBufferAsync("image/png");
-    
-    fs.writeFileSync(pathImg, raw);
-    fs.unlinkSync(avatarOne);
-    fs.unlinkSync(avatarTwo);
-    
-    return pathImg;
-}
-async function circle(image) {
-    const jimp = require("jimp");
-    image = await jimp.read(image);
-    image.circle();
-    return await image.getBufferAsync("image/png");
-}
+    if (Object.keys(mentions).length > 0) {
+      id = Object.keys(mentions)[0];
+    } else if (messageReply) {
+      id = messageReply.senderID;
+    } else if (args[0]) {
+      id = args[0];
+    } else {
+      return api.sendMessage(
+        "🍓 𝐎𝐨𝐩𝐬𝐢𝐞! 𝐏𝐥𝐞𝐚𝐬𝐞 𝐦𝐞𝐧𝐭𝐢𝐨𝐧 / 𝐫𝐞𝐩𝐥𝐲 / 𝐠𝐢𝐯𝐞 𝐔𝐈𝐃 🍒 ‧₊˚🩰🍃",
+        threadID,
+        messageID
+      );
+    }
 
-module.exports.run = async function ({ event, api, args, Currencies }) { 
-    const fs = global.nodemodule["fs-extra"];
-    const hc = Math.floor(Math.random() * 101);
-    const rd = Math.floor(Math.random() * 100000) + 100000;
-    const { threadID, messageID, senderID } = event;
-    const mention = Object.keys(event.mentions);
-    var one = senderID, two = mention[0];
-  await Currencies.increaseMoney(event.senderID, parseInt(hc*rd));
-  
-  if (!two) return api.sendMessage("Please tag 1 person", threadID, messageID);
-  else {
-        return makeImage({ one, two }).then(path => api.sendMessage({ body: `you deserve this place`, attachment: fs.createReadStream(path)}, threadID, () => fs.unlinkSync(path), messageID));
-  }
-}
+    try {
+      const apiUrl = await baseApiUrl();
+      const url = `${apiUrl}/api/toilet?user=${id}`;
+
+      const response = await axios.get(url, {
+        responseType: "arraybuffer",
+      });
+
+      const filePath = path.join(__dirname, `toilet_${id}.png`);
+      fs.writeFileSync(filePath, response.data);
+
+      api.sendMessage(
+        {
+          body: "Here's your toilet image 🐸",
+          attachment: fs.createReadStream(filePath),
+        },
+        threadID,
+        () => fs.unlinkSync(filePath),
+        messageID
+      );
+
+    } catch (err) {
+      api.sendMessage(
+        "🍓 𝐒𝐨𝐫𝐫𝐲 𝐛𝐚𝐛𝐲! 𝐒𝐨𝐦𝐞𝐭𝐡𝐢𝐧𝐠 𝐰𝐞𝐧𝐭 𝐰𝐫𝐨𝐧𝐠 💔🍒 ‧₊˚🩰🍃\n𝐏𝐥𝐞𝐚𝐬𝐞 𝐭𝐫𝐲 𝐚𝐠𝐚𝐢𝐧 𝐥𝐚𝐭𝐞𝐫 🥺",
+        threadID,
+        messageID
+      );
+    }
+  },
+};
