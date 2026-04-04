@@ -1,107 +1,60 @@
-module.exports.config = {
-  name: "top",
-  version: "0.0.5",
-  hasPermssion: 0,
-  credits: "𝐂𝐘𝐁𝐄𝐑 ☢️_𖣘 -𝐁𝐎𝐓 ⚠️ 𝑻𝑬𝑨𝑴_ ☢️",
-  description: "Top Server!",
-  commandCategory: "group",
-  usages: "[thread/user/money/level]",
-  cooldowns: 5
+const axios = require("axios");
+
+// Helper to convert rank name to mathematical sans-serif
+const toSansMath = (str) => {
+  const map = {'a': '𝖺', 'b': '𝖻', 'c': '𝖼', 'd': '𝖽', 'e': '𝖾', 'f': '𝖿', 'g': '𝗀', 'h': '𝗁', 'i': '𝗂', 'j': '𝗃', 'k': '𝗄', 'l': '𝗅', 'm': '𝗆', 'n': '𝗇', 'o': '𝗈', 'p': '𝗉', 'q': '𝗊', 'r': '𝗋', 's': '𝗌', 't': '𝗍', 'u': '𝗎', 'v': '𝗏', 'w': '𝗐', 'x': '𝗑', 'y': '𝗒', 'z': '𝗓', 'A': '𝖠', 'B': '𝖡', 'C': '𝖢', 'D': '𝖣', 'E': '𝖤', 'F': '𝖥', 'G': '𝖦', 'H': '𝖧', 'I': '𝖨', 'J': '𝖩', 'K': '𝖪', 'L': '𝖫', 'M': '𝖬', 'N': '𝖭', 'O': '𝖮', 'P': '𝖯', 'Q': '𝖰', 'R': '𝖱', 'S': '𝖲', 'T': '𝖳', 'U': '𝖴', 'V': '𝖵', 'W': '𝖶', 'X': '𝖷', 'Y': '𝖸', 'Z': '𝖹'};
+  return str.replace(/[a-zA-Z]/g, m => map[m] || m);
 };
 
-module.exports.run = async ({ event, api, args, Currencies, Users }) => {
-    const { threadID, messageID } = event;
+// Helper for medel emojis
+const getMedal = (rank) => {
+  if (rank === 1) return "🥇";
+  if (rank === 2) return "🥈";
+  if (rank === 3) return "🥉";
+  return `[${rank}]`;
+};
 
+module.exports.config = {
+  name: "top",
+  version: "1.0.3",
+  hasPermssion: 0,
+  credits: "MAHIM ISLAM",
+  description: "View leaderboard",
+  commandCategory: "economy",
+  usages: "[page]",
+  cooldowns: 10
+};
 
-  ///////////////////////////////////////////
-  //===== Check if there is a limit or not =====//
-  if (args[1] && isNaN(args[1]) || parseInt(args[1]) <= 0) return api.sendMessage("list length information must be a number and not less than 0", event.threadID, event.messageID);
-  var option = parseInt(args[1] || 10);
-  var data, msg = "";
-
-  ///////////////////////////////////////
-  //===== Check the case =====//
-  var fs = require("fs-extra");
-  var request = require("request");  // Covernt exp to level
-    function expToLevel(point) {
-  if (point < 0) return 0;
-  return Math.floor((Math.sqrt(1 + (4 * point) / 3) + 1) / 2);
-    }
-    //level 
-    if (args[0] == "user") { 
-    let all = await Currencies.getAll(['userID', 'exp']);
-        all.sort((a, b) => b.exp - a.exp);
-        let num = 0;
-               let msg = {
-          body: 'The 10 People Highest Level On Server!',
-          
-        }
-        for (var i = 0; i < 10; i++) {
-           
-   
-          let level = expToLevel(all[i].exp);
-          var name = (await Users.getData(all[i].userID)).name;      
-  
-          num += 1;
-          msg.body += '\n' + num + '. ' + name + ' - level ' + level;}
-           console.log(msg.body)
-                    api.sendMessage(msg, event.threadID, event.messageID)
-    }
-  if (args[0] == "thread") {
-    var threadList = [];
+module.exports.run = async function ({ api, event, args }) {
+  try {
+    const page = args[0] || 1;
+    const apiUrl = `https://mahimcraft.alwaysdata.net/economy/?type=leaderboard&page=${page}`;
     
-    //////////////////////////////////////////////
-    //===== Get the entire group and message number =====//
-    try {
-          data = await api.getThreadList(option + 10, null, ["INBOX"]);
-    }
-    catch (e) {
-      console.log(e);
-    }
+    const response = await axios.get(apiUrl);
+    const data = response.data;
 
-    for (const thread of data) {
-      if (thread.isGroup == true) threadList.push({ threadName: thread.name, threadID: thread.threadID, messageCount: thread.messageCount });
-    }
-    
-    /////////////////////////////////////////////////////
-    //===== Sort from highest to lowest for each group =====//
-    threadList.sort((a, b) => {
-      if (a.messageCount > b.messageCount) return -1;
-            if (a.messageCount < b.messageCount) return 1;
-    })
-
-    ///////////////////////////////////////////////////////////////
-    //===== Start getting the push list into the return template =====//
-    var i = 0;
-    for(const dataThread of threadList) {
-      if (i == option) break;
-      msg += `${i+1}/ ${(dataThread.threadName)||"No name"}\nTID: [${dataThread.threadID}]\nNumber of message: ${dataThread.messageCount} message\n\n`;
-      i+=1;
-    }
-    
-    return api.sendMessage(`Top ${threadList.length} Groups Have The Most Number Of Message:\n_____________________________\n${msg}\n_____________________________`, threadID, messageID);
-  }
-  
- if (args[0] == "money") { 
-    let all = await Currencies.getAll(['userID', 'money']);
-        all.sort((a, b) => b.money - a.money);
-        let num = 0;
-               let msg = {
-          body: 'The 10 People Richest On Server!',
-          
-        }
-        for (var i = 0; i < 10; i++) {
-        
-   
-          let level = all[i].money;
+    if (data.status === "success" && data.data.length > 0) {
+      let msg = `╭── 🏆 𝖫𝖾𝖺𝖽𝖾𝗋𝖻𝗈𝖺𝗋𝖽 • 𝖯𝖺𝗀𝖾 ${page} ──╮\n`;
       
-          var name = (await Users.getData(all[i].userID)).name;    
-                    
-          num += 1;
-          msg.body += '\n' + num + '. ' + name + ': ' + level + "💵";}
-                    console.log(msg.body)
-                    api.sendMessage(msg, event.threadID, event.messageID)
+      data.data.forEach(user => {
+        const medal = getMedal(user.rank_num);
+        const rankName = toSansMath(user.rank_name);
+        
+        msg += `│ ${medal} ${user.name}\n│ ╰─ ${user.total} • ❨${rankName}❩\n`;
+      });
+
+      msg += `╰────────────────────╯`;
+
+      return api.sendMessage(msg, event.threadID, (err, info) => {
+        if (!err) {
+          setTimeout(() => api.unsendMessage(info.messageID), 30000); 
+        }
+      }, event.messageID);
+      
+    } else {
+      return api.sendMessage("⚠️ | 𝐄𝐦𝐩𝐭𝐲.", event.threadID, event.messageID);
     }
-
-}
-
+  } catch (error) {
+    return api.sendMessage("❌ | 𝐄𝐫𝐫𝐨𝐫", event.threadID, event.messageID);
+  }
+};
