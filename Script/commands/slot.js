@@ -1,26 +1,25 @@
 const axios = require("axios");
 
-// Helper function to shuffle an array (for randomizing slot positions)
+// Helper function to shuffle an array
 const shuffle = (array) => array.sort(() => Math.random() - 0.5);
 
 // Helper function to multiply text-based numbers (e.g., "5.5K" * 2 = "11K")
 const multiplyBetAmount = (amountStr, multiplier) => {
-  // Remove commas for calculation if the user inputted something like "10,000"
   const cleanStr = String(amountStr).replace(/,/g, '').trim();
   const match = cleanStr.match(/^([0-9.]+)([a-zA-Z]*)$/);
   
-  if (!match) return amountStr; // Fallback if parsing fails
+  if (!match) return amountStr; 
   
   const num = parseFloat(match[1]);
   const suffix = match[2] ? match[2].toUpperCase() : "";
-  const calculated = parseFloat((num * multiplier).toFixed(2)); // Avoids long decimals
+  const calculated = parseFloat((num * multiplier).toFixed(2)); 
   
   return calculated + suffix;
 };
 
 module.exports.config = {
   name: "slot",
-  version: "1.0.2",
+  version: "1.0.4",
   hasPermssion: 0,
   credits: "MAHIM ISLAM",
   description: "Play the slot machine (50% win chance)",
@@ -36,7 +35,7 @@ module.exports.run = async function ({ api, event, args }) {
 
     const uid = event.senderID;
     
-    // Step 1: Deduct the bet amount first to check if they have enough balance
+    // Step 1: Deduct the bet amount FIRST to verify sufficient balance
     const deductUrl = `https://mahimcraft.alwaysdata.net/economy/?type=deduct&uid=${uid}&quantity=${bet}&notes=Slot+Bet`;
     const deductRes = await axios.get(deductUrl);
     
@@ -48,7 +47,6 @@ module.exports.run = async function ({ api, event, args }) {
     const isWin = Math.random() < 0.5;
     let multiplier = 0;
     
-    // Emojis to use in the slot machine
     const slots = ["🍒", "🍇", "🍉", "🍓", "🍋", "🔔", "💎"];
     let resultEmojis = [];
 
@@ -63,45 +61,43 @@ module.exports.run = async function ({ api, event, args }) {
       
       if (isJackpot) {
         multiplier = 3;
-        // 3 of the same emoji
         resultEmojis = [shuffled[0], shuffled[0], shuffled[0]];
       } else {
         multiplier = 2;
-        // 2 of the same emoji, 1 different
         resultEmojis = shuffle([shuffled[0], shuffled[0], shuffled[1]]);
       }
     }
 
-    // Step 3: If won, add the winnings!
-    if (isWin) {
-      const addUrl = `https://mahimcraft.alwaysdata.net/economy/?type=add&uid=${uid}&quantity=${bet}&notes=Slot+Win`;
-      // Call the add API 'multiplier' times to give the correct total payout
-      for (let i = 0; i < multiplier; i++) {
-        await axios.get(addUrl);
-      }
-    }
-
-    // Step 4: Formatting the beautiful output
-    let msg = `╭─── 🎰 𝐒𝐋𝐎𝐓 𝐌𝐀𝐂𝐇𝐈𝐍𝐄 ───╮\n`;
-    msg += `│\n`;
-    msg += `│       [ ${resultEmojis[0]} | ${resultEmojis[1]} | ${resultEmojis[2]} ]\n`;
-    msg += `│\n`;
-    
+    // Step 3: Smart Winnings Payout
     if (isWin) {
       const wonAmount = multiplyBetAmount(bet, multiplier);
+      const addUrl = `https://mahimcraft.alwaysdata.net/economy/?type=add&uid=${uid}&quantity=${wonAmount}&notes=Slot+Win`;
+      await axios.get(addUrl);
+    }
+
+    // Step 4: Formatting the NARROW mobile-friendly output
+    const wonAmountStr = multiplyBetAmount(bet, multiplier);
+    const betUpper = bet.toUpperCase();
+
+    let msg = `🎰 𝐒𝐋𝐎𝐓 𝐌𝐀𝐂𝐇𝐈𝐍𝐄 🎰\n`;
+    msg += `┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n`;
+    msg += ` ► [ ${resultEmojis[0]} | ${resultEmojis[1]} | ${resultEmojis[2]} ] ◄\n`;
+    msg += `┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n`;
+    
+    if (isWin) {
       if (multiplier === 3) {
-        msg += `╰─ 🎉 𝐉𝐀𝐂𝐊𝐏𝐎𝐓! 𝐘𝐨𝐮 𝐰𝐨𝐧 💲${wonAmount}.`;
+        msg += `🎉 𝐉𝐀𝐂𝐊𝐏𝐎𝐓! (𝟑𝐗)\n➕ 💲${wonAmountStr}`;
       } else {
-        msg += `╰─ ✅ 𝐌𝐀𝐓𝐂𝐇! 𝐘𝐨𝐮 𝐰𝐨𝐧 💲${wonAmount}.`;
+        msg += `✅ 𝐌𝐀𝐓𝐂𝐇𝐄𝐃! (𝟐𝐗)\n➕ 💲${wonAmountStr}`;
       }
     } else {
-      msg += `╰─ ❌ 𝐋𝐎𝐒𝐓! 𝐘𝐨𝐮 𝐥𝐨𝐬𝐭 💲${bet.toUpperCase()}.`;
+      msg += `❌ 𝐘𝐎𝐔 𝐋𝐎𝐒𝐓!\n➖ 💲${betUpper}`;
     }
 
     return api.sendMessage(msg, event.threadID, event.messageID);
 
   } catch (error) {
     console.error(error);
-    return api.sendMessage("❌ | 𝐄𝐫𝐫𝐨𝐫", event.threadID, event.messageID);
+    return api.sendMessage("❌ | 𝐄𝐫𝐫𝐨𝐫 𝐨𝐜𝐜𝐮𝐫𝐫𝐞𝐝.", event.threadID, event.messageID);
   }
 };
