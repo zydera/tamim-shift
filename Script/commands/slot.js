@@ -1,61 +1,107 @@
-module.exports.config = {
-    name: "slot",
-    version: "1.0.1",
-    hasPermssion: 0,
-    credits: "𝐂𝐘𝐁𝐄𝐑 ☢️_𖣘 -𝐁𝐎𝐓 ⚠️ 𝑻𝑬𝑨𝑴_ ☢️",
-    description: "fair play",
-    commandCategory: "game-sp",
-    usages: "[number coin required]",
-    cooldowns: 5,
+const axios = require("axios");
+
+// Helper function to shuffle an array (for randomizing slot positions)
+const shuffle = (array) => array.sort(() => Math.random() - 0.5);
+
+// Helper function to multiply text-based numbers (e.g., "5.5K" * 2 = "11K")
+const multiplyBetAmount = (amountStr, multiplier) => {
+  // Remove commas for calculation if the user inputted something like "10,000"
+  const cleanStr = String(amountStr).replace(/,/g, '').trim();
+  const match = cleanStr.match(/^([0-9.]+)([a-zA-Z]*)$/);
+  
+  if (!match) return amountStr; // Fallback if parsing fails
+  
+  const num = parseFloat(match[1]);
+  const suffix = match[2] ? match[2].toUpperCase() : "";
+  const calculated = parseFloat((num * multiplier).toFixed(2)); // Avoids long decimals
+  
+  return calculated + suffix;
 };
 
-module.exports.languages = {
-    "vi": {
-        "missingInput": "[ SLOT ] Số tiền đặt cược không được để trống hoặc là số âm",
-        "moneyBetNotEnough": "[ SLOT ] Số tiền bạn đặt lớn hơn hoặc bằng số dư của bạn!",
-        "limitBet": "[ SLOT ] Số coin đặt không được dưới 50$!",
-        "returnWin": "🎰 %1 | %2 | %3 🎰\nBạn đã thắng với %4$",
-        "returnLose": "🎰 %1 | %2 | %3 🎰\nBạn đã thua và mất %4$"
-    },
-    "en": {
-        "missingInput": "[ SLOT ] The bet money must not be blank or a negative number",
-        "moneyBetNotEnough": "[ SLOT ] The money you betted is bigger than your balance!",
-        "limitBet": "[ SLOT ] Your bet is too low, the minimum is 50$",
-        "returnWin": "🎰 %1 | %2 | %3 🎰\nYou won with %4$",
-        "returnLose": "🎰 %1 | %2 | %3 🎰\nYou lost and loss %4$"
-    }
-}
+module.exports.config = {
+  name: "slot",
+  version: "1.0.2",
+  hasPermssion: 0,
+  credits: "MAHIM ISLAM",
+  description: "Play the slot machine (50% win chance)",
+  commandCategory: "economy",
+  usages: "[amount]",
+  cooldowns: 5
+};
 
-module.exports.run = async function({ api, event, args, Currencies, getText }) {
-    const { threadID, messageID, senderID } = event;
-    const { getData, increaseMoney, decreaseMoney } = Currencies;
-    const slotItems = ["🍇", "🍉", "🍊", "🍏", "7⃣", "🍓", "🍒", "🍌", "🥝", "🥑", "🌽"];
-    const moneyUser = (await getData(senderID)).money;
+module.exports.run = async function ({ api, event, args }) {
+  try {
+    const bet = args[0];
+    if (!bet) return api.sendMessage("⚠️ | 𝐄𝐧𝐭𝐞𝐫 𝐛𝐞𝐭 𝐚𝐦𝐨𝐮𝐧𝐭.", event.threadID, event.messageID);
 
-    var moneyBet = parseInt(args[0]);
-    if (isNaN(moneyBet) || moneyBet <= 0) return api.sendMessage(getText("missingInput"), threadID, messageID);
-	if (moneyBet > moneyUser) return api.sendMessage(getText("moneyBetNotEnough"), threadID, messageID);
-	if (moneyBet < 50) return api.sendMessage(getText("limitBet"), threadID, messageID);
-    var number = [], win = false;
-    for (i = 0; i < 3; i++) number[i] = Math.floor(Math.random() * slotItems.length);
-    if (number[0] == number[1] && number[1] == number[2]) {
-        moneyBet *= 9;
-        win = true;
+    const uid = event.senderID;
+    
+    // Step 1: Deduct the bet amount first to check if they have enough balance
+    const deductUrl = `https://mahimcraft.alwaysdata.net/economy/?type=deduct&uid=${uid}&quantity=${bet}&notes=Slot+Bet`;
+    const deductRes = await axios.get(deductUrl);
+    
+    if (deductRes.data.status !== "success") {
+      return api.sendMessage(`⚠️ | ${deductRes.data.message}`, event.threadID, event.messageID);
     }
-    else if (number[0] == number[1] || number[0] == number[2] || number[1] == number[2]) {
-        moneyBet *= 2;
-        win = true;
+
+    // Step 2: Determine Win or Loss (Exactly 50% chance)
+    const isWin = Math.random() < 0.5;
+    let multiplier = 0;
+    
+    // Emojis to use in the slot machine
+    const slots = ["🍒", "🍇", "🍉", "🍓", "🍋", "🔔", "💎"];
+    let resultEmojis = [];
+
+    if (!isWin) {
+      // LOSE: 3 different emojis
+      const shuffled = shuffle([...slots]);
+      resultEmojis = [shuffled[0], shuffled[1], shuffled[2]];
+    } else {
+      // WIN: Determine if 2X (80% of wins) or 3X (20% of wins)
+      const isJackpot = Math.random() < 0.2; 
+      const shuffled = shuffle([...slots]);
+      
+      if (isJackpot) {
+        multiplier = 3;
+        // 3 of the same emoji
+        resultEmojis = [shuffled[0], shuffled[0], shuffled[0]];
+      } else {
+        multiplier = 2;
+        // 2 of the same emoji, 1 different
+        resultEmojis = shuffle([shuffled[0], shuffled[0], shuffled[1]]);
+      }
     }
-    switch (win) {
-        case true: {
-            api.sendMessage(getText("returnWin", slotItems[number[0]], slotItems[number[1]], slotItems[number[2]], moneyBet), threadID, messageID);
-            await increaseMoney(senderID, moneyBet);
-            break;
-        }
-        case false: {
-            api.sendMessage(getText("returnLose", slotItems[number[0]], slotItems[number[1]], slotItems[number[2]], moneyBet), threadID, messageID);
-            await decreaseMoney(senderID, moneyBet);
-            break;
-        }
+
+    // Step 3: If won, add the winnings!
+    if (isWin) {
+      const addUrl = `https://mahimcraft.alwaysdata.net/economy/?type=add&uid=${uid}&quantity=${bet}&notes=Slot+Win`;
+      // Call the add API 'multiplier' times to give the correct total payout
+      for (let i = 0; i < multiplier; i++) {
+        await axios.get(addUrl);
+      }
     }
-}
+
+    // Step 4: Formatting the beautiful output
+    let msg = `╭─── 🎰 𝐒𝐋𝐎𝐓 𝐌𝐀𝐂𝐇𝐈𝐍𝐄 ───╮\n`;
+    msg += `│\n`;
+    msg += `│       [ ${resultEmojis[0]} | ${resultEmojis[1]} | ${resultEmojis[2]} ]\n`;
+    msg += `│\n`;
+    
+    if (isWin) {
+      const wonAmount = multiplyBetAmount(bet, multiplier);
+      if (multiplier === 3) {
+        msg += `╰─ 🎉 𝐉𝐀𝐂𝐊𝐏𝐎𝐓! 𝐘𝐨𝐮 𝐰𝐨𝐧 💲${wonAmount}.`;
+      } else {
+        msg += `╰─ ✅ 𝐌𝐀𝐓𝐂𝐇! 𝐘𝐨𝐮 𝐰𝐨𝐧 💲${wonAmount}.`;
+      }
+    } else {
+      msg += `╰─ ❌ 𝐋𝐎𝐒𝐓! 𝐘𝐨𝐮 𝐥𝐨𝐬𝐭 💲${bet.toUpperCase()}.`;
+    }
+
+    return api.sendMessage(msg, event.threadID, event.messageID);
+
+  } catch (error) {
+    console.error(error);
+    return api.sendMessage("❌ | 𝐄𝐫𝐫𝐨𝐫", event.threadID, event.messageID);
+  }
+};
