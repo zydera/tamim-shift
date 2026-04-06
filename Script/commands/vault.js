@@ -7,30 +7,29 @@ module.exports.config = {
   credits: "MAHIM ISLAM",
   description: "Check own vault balance",
   commandCategory: "economy",
-  usages: "",
   cooldowns: 5
 };
 
-module.exports.run = async function ({ api, event, Users }) {
+module.exports.run = async ({ api, event, Users }) => {
   try {
     const uid = event.senderID;
-    let name = await Users.getNameUser(uid) || "User";
-    const encodedName = encodeURIComponent(name);
-    
-    // Uses the specific vault_check endpoint
-    const apiUrl = `https://mahimcraft.alwaysdata.net/economy/?type=vault_check&uid=${uid}&name=${encodedName}`;
-    const response = await axios.get(apiUrl);
-    const data = response.data;
+    const name = await Users.getNameUser(uid) || "User";
 
-    if (data.status === "success") {
-      const cleanVault = data.vault_formatted.replace(/💲/g, '$'); 
-      const msg = `🎀 ${name}\n\n𝐁𝐚𝐛𝐲, 𝐘𝐨𝐮𝐫 𝐯𝐚𝐮𝐥𝐭: ${cleanVault}`;
+    const { data } = await axios.get(
+      `https://mahimcraft.alwaysdata.net/economy/?type=vault_check&uid=${uid}&name=${encodeURIComponent(name)}`
+    );
 
-      return api.sendMessage(msg, event.threadID, event.messageID);
-    } else {
+    if (data.status !== "success") {
       return api.sendMessage(`⚠️ | ${data.message || "Error"}`, event.threadID, event.messageID);
     }
-  } catch (error) {
-    return api.sendMessage("❌ | 𝐄𝐫𝐫𝐨𝐫", event.threadID, event.messageID);
+
+    api.sendMessage(
+      `🎀 ${name}\n\n𝐁𝐚𝐛𝐲, 𝐘𝐨𝐮𝐫 𝐯𝐚𝐮𝐥𝐭: {data.vault_formatted}`,
+      event.threadID,
+      event.messageID
+    );
+
+  } catch {
+    api.sendMessage("❌ | 𝐄𝐫𝐫𝐨𝐫", event.threadID, event.messageID);
   }
 };
