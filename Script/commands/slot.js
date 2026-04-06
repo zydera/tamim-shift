@@ -19,10 +19,10 @@ const multiplyBetAmount = (amountStr, multiplier) => {
 
 module.exports.config = {
   name: "slot",
-  version: "1.0.7",
+  version: "1.0.6",
   hasPermssion: 0,
   credits: "MAHIM ISLAM",
-  description: "Play the slot machine (70% win chance, Bet: 1K - 100M)",
+  description: "Play the slot machine (70% win chance)",
   commandCategory: "economy",
   usages: "[amount]",
   cooldowns: 5
@@ -35,17 +35,17 @@ module.exports.run = async function ({ api, event, args }) {
 
     const uid = event.senderID;
     
-    // Step 1: Deduct the bet amount FIRST to verify sufficient balance.
-    // Added &min=1K and &max=100M to enforce the API's dynamic limits.
-    const deductUrl = `https://mahimcraft.alwaysdata.net/economy/?type=deduct&uid=${uid}&quantity=${bet}&notes=Slot+Bet&min=1K&max=100M`;
+    // Step 1: Deduct the bet amount FIRST to verify sufficient balance
+    const deductUrl = `https://mahimcraft.alwaysdata.net/economy/?type=deduct&uid=${uid}&quantity=${bet}&notes=Slot+Bet`;
     const deductRes = await axios.get(deductUrl);
     
     if (deductRes.data.status !== "success") {
       return api.sendMessage(`⚠️ | ${deductRes.data.message}`, event.threadID, event.messageID);
     }
 
-    // Step 2: Determine Win or Loss (70% win chance)
-    const isWin = Math.random() < 0.7; 
+    // Step 2: Determine Win or Loss
+    // INCREASED WIN CHANCE: Change the 0.7 below to adjust the win rate (0.7 = 70%, 0.8 = 80%, etc.)
+    const isWin = Math.random() < 0.5; 
     let profitMultiplier = 0;
     
     const slots = ["🍒", "🍇", "🍉", "🍓", "🍋", "🔔", "💎"];
