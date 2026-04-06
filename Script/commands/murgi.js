@@ -1,6 +1,4 @@
 const axios = require("axios");
-const fs = require("fs");
-const path = require("path");
 
 const baseApiUrl = async () => {
   const base = await axios.get(
@@ -35,35 +33,31 @@ module.exports = {
     }
 
     if (!id) {
-      return message.reply("🍓 Baby, mention, reply, or provide UID of the target! 🐓 ‧₊˚🩰🍃");
+      return message.reply(
+        "🍓 Baby, mention, reply, or provide UID of the target! 🐓 ‧₊˚🩰🍃"
+      );
     }
 
-    const cacheDir = path.join(__dirname, "cache");
-    if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
-    const filePath = path.join(cacheDir, `murgi_${id}.png`);
-
     try {
+      // React with chicken emoji while processing
       api.setMessageReaction("🐓", event.messageID, () => {}, true);
 
+      // Get API base URL
       const baseUrl = await baseApiUrl();
       const url = `${baseUrl}/api/murgi?user=${id}`;
 
+      // Fetch image
       const response = await axios.get(url, { responseType: "arraybuffer" });
-      fs.writeFileSync(filePath, Buffer.from(response.data));
+      const imageBuffer = Buffer.from(response.data);
 
-      return message.reply(
-        {
-          body: "Here's your murgi image 🐸",
-          attachment: fs.createReadStream(filePath)
-        },
-        () => {
-          if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-        }
-      );
+      // Send image directly without saving
+      return message.reply({
+        body: "Here's your murgi image 🐸",
+        attachment: imageBuffer
+      });
 
     } catch (err) {
-      console.error("Murgi Error:", err);
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      console.error("Murgi Error:", err.response?.data || err.message);
       return message.reply(`🍒 API error: ${err.message} ‧₊˚🩰🍃`);
     }
   }
