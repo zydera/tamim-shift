@@ -135,14 +135,17 @@ module.exports.handleEvent = async function ({ api, event, Users }) {
     const raw = event.body.toLowerCase().trim();
     if (!raw) return;
 
-    // 🛑 STOP PRE-FIX COMMANDS FROM TRIGGERING SIMSIMI 🛑
-    // Gets your bot's prefix from config, defaults to '.'
-    const prefix = (global.config && global.config.PREFIX) ? global.config.PREFIX : ".";
-    // Also ignore common prefixes used by other bots just in case
-    const commonPrefixes = [prefix, "/", "!", "#", "?"]; 
+    // 🛑 SAFE IGNORER BLOCK: Filters out empty strings so it doesn't break! 🛑
+    let botPrefix = "."; // Fallback prefix
+    if (global && global.config && typeof global.config.PREFIX === "string") {
+      botPrefix = global.config.PREFIX;
+    }
     
-    if (commonPrefixes.some(p => raw.startsWith(p))) {
-        return; // Exits immediately, allowing the real command to run undisturbed
+    // Make sure we only check valid, non-empty prefix symbols
+    const prefixesToIgnore = [botPrefix, "/", "!", "#", "?"].filter(p => p && p.trim() !== "");
+    
+    if (prefixesToIgnore.some(p => raw.startsWith(p))) {
+      return; // Stop if it's a real bot command
     }
 
     const senderName = await Users.getNameUser(event.senderID);
@@ -158,7 +161,6 @@ module.exports.handleEvent = async function ({ api, event, Users }) {
           id: senderID
         }]
       };
-
       return api.sendMessage(mention, event.threadID, event.messageID);
     }
 
