@@ -61,7 +61,7 @@ module.exports.run = async function ({ api, event, args }) {
     // --- API DEDUCT + LIMITS ENFORCEMENT ---
     const deductUrl = `https://mahimcraft.alwaysdata.net/economy/?type=deduct&uid=${uid}&quantity=${bet}&notes=Slot+Bet&min=1K&max=20M&event=slot&limit=20&time=180`;
     const deductRes = await axios.get(deductUrl);
-    if (deductRes.data.status !== "success") return api.sendMessage(`⚠️ | ${toSansBold(deductRes.data.message)}`, event.threadID, event.messageID);
+    if (deductRes.data.status !== "success") return api.sendMessage(deductRes.data.message, event.threadID, event.messageID);
 
     // --- 60% WIN CHANCE ---
     const isWin = Math.random() < 0.60; 
