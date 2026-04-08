@@ -1,7 +1,8 @@
 const axios = require("axios");
 const simsim = "https://mahimcraft.alwaysdata.net/simsim";
-const botApi = "https://mahimcraft.alwaysdata.net/simsim/bot/"; 
+const botApi = "https://mahimcraft.alwaysdata.net/simsim/bot/"; // Your custom random text API
 
+// 🚀 OPTIMIZATION: Arrays stay outside for speed.
 const triggers = [
   "baby", "bby", "pakhi", "jan", "xan",
   "babu", "bb", "sona", "janu", "jaan",
@@ -12,7 +13,7 @@ const triggers = [
 
 module.exports.config = {
   name: "baby",
-  version: "1.0.9",
+  version: "1.0.7",
   hasPermssion: 0,
   credits: "Modified by MAHIM ISLAM",
   description: "Cute AI Baby Chatbot with custom API & smart matching",
@@ -22,6 +23,7 @@ module.exports.config = {
   prefix: false
 };
 
+// 🛡️ Helper: Fetch random text from your PHP API
 async function fetchRandomGreeting() {
   try {
     const response = await axios.get(botApi);
@@ -32,6 +34,7 @@ async function fetchRandomGreeting() {
   }
 }
 
+// 🛡️ Helper: Fetch reply from your SimSimi API
 async function fetchAndSendSimSimi(api, event, text, senderName) {
   try {
     const res = await axios.get(
@@ -46,6 +49,7 @@ async function fetchAndSendSimSimi(api, event, text, senderName) {
 
     for (const reply of responses) {
       if (!reply) continue; 
+      
       await new Promise((resolve) => {
         api.sendMessage(reply, event.threadID, () => resolve(), event.messageID);
       });
@@ -58,12 +62,11 @@ async function fetchAndSendSimSimi(api, event, text, senderName) {
 module.exports.run = async function ({ api, event, args, Users }) {
   try {
     const uid = event.senderID;
-    let senderName = "Babu";
-    try { senderName = await Users.getNameUser(uid); } catch(e) {}
-
+    const senderName = await Users.getNameUser(uid);
     const rawQuery = args.join(" ");
     const query = rawQuery.toLowerCase().trim();
 
+    // If command is called with no arguments (e.g., just "/baby")
     if (!query) {
       const randomReply = await fetchRandomGreeting();
       return api.sendMessage(randomReply, event.threadID, event.messageID);
@@ -108,7 +111,9 @@ module.exports.run = async function ({ api, event, args, Users }) {
         try {
           const threadInfo = await api.getThreadInfo(groupID);
           if (threadInfo && threadInfo.threadName) groupName = threadInfo.threadName.trim();
-        } catch (error) {}
+        } catch (error) {
+          console.error(`Error fetching thread info for ID ${groupID}:`, error);
+        }
       }
 
       let teachUrl = `${simsim}/teach?ask=${encodeURIComponent(ask)}&ans=${encodeURIComponent(ans)}&senderID=${uid}&senderName=${encodeURIComponent(senderName)}&groupID=${encodeURIComponent(groupID)}`;
@@ -118,6 +123,7 @@ module.exports.run = async function ({ api, event, args, Users }) {
       return api.sendMessage(`${res.data.message || "Reply added successfully!"}`, event.threadID, event.messageID);
     }
 
+    // Normal chat flow via command
     await fetchAndSendSimSimi(api, event, query, senderName);
 
   } catch (err) {
@@ -135,29 +141,37 @@ module.exports.handleEvent = async function ({ api, event, Users }) {
     const raw = event.body.toLowerCase().trim();
     if (!raw) return;
 
-    // 🛑 BULLETPROOF PREFIX IGNORER
-    let prefix = ".";
-    if (typeof global !== "undefined" && global.config && global.config.PREFIX) {
-      prefix = global.config.PREFIX;
-    }
-    // Ignore if it starts with the bot prefix or common command symbols
-    if (raw.startsWith(prefix) || /^[/!#?]/.test(raw)) return;
+    const senderName = await Users.getNameUser(event.senderID);
+    const senderID = event.senderID;
 
-    // 1. EXACT MATCH: (e.g., just "baby" or "bot")
-    if (triggers.includes(raw)) {
-      let senderName = "Babu";
-      try { senderName = await Users.getNameUser(event.senderID); } catch(e) {} // Fetches name ONLY when needed
+    // 🎯 THE SMART FALLBACK: Handles ANY reply directly to the bot's messages
+    if (event.type === "message_reply" && event.messageReply && event.messageReply.senderID == api.getCurrentUserID()) {
+      let isPending = false;
+      if (global.client.handleReply && Array.isArray(global.client.handleReply)) {
+        isPending = global.client.handleReply.some(item => item.messageID == event.messageReply.messageID);
+      }
       
+      if (!isPending) {
+        await fetchAndSendSimSimi(api, event, raw, senderName);
+        return;
+      }
+    }
+
+    // 1. EXACT MATCH: If the user only said the trigger word (e.g., just "baby" or "bot")
+    if (triggers.includes(raw)) {
       const randomReply = await fetchRandomGreeting();
       const mention = {
         body: `${randomReply} @${senderName}`,
-        mentions: [{ tag: `@${senderName}`, id: event.senderID }]
+        mentions: [{
+          tag: `@${senderName}`,
+          id: senderID
+        }]
       };
 
       return api.sendMessage(mention, event.threadID, event.messageID);
     }
 
-    // 2. ANYWHERE MATCH: If the trigger word is inside the sentence
+    // 2. ANYWHERE MATCH: If the trigger word is inside the sentence (start, middle, or end)
     let matchedTrigger = null;
     for (const t of triggers) {
       const regex = new RegExp(`(^|\\s)${t}(\\s|$)`, 'i');
@@ -171,12 +185,14 @@ module.exports.handleEvent = async function ({ api, event, Users }) {
       const regex = new RegExp(`(^|\\s)${matchedTrigger}(\\s|$)`, 'i');
       const query = raw.replace(regex, ' ').trim();
       
+      // ✅ FIX: Check if the query starts with a command (teach, edit, rm, remove, list)
+      // If it does, stop handleEvent completely because module.exports.run will handle it!
       const firstWord = (query.split(/\s+/)[0] || "").toLowerCase();
-      if (["teach", "edit", "rm", "remove", "list"].includes(firstWord)) return;
+      if (["teach", "edit", "rm", "remove", "list"].includes(firstWord)) {
+          return;
+      }
       
       if (query) {
-        let senderName = "Babu";
-        try { senderName = await Users.getNameUser(event.senderID); } catch(e) {} // Fetches name ONLY when needed
         await fetchAndSendSimSimi(api, event, query, senderName);
       }
     }
