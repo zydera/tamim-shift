@@ -33,7 +33,7 @@ const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + mi
 
 module.exports.config = {
   name: "dice",
-  version: "1.0.2",
+  version: "1.0.3",
   hasPermssion: 0,
   credits: "MAHIM ISLAM",
   description: "Play against the bot in a dice roll (60% Win Chance)",
@@ -50,7 +50,7 @@ module.exports.run = async function ({ api, event, args }) {
 
     // --- INFO MENU ---
     if (rawBet.toLowerCase() === "info") {
-      const infoUrl = `https://mahimcraft.alwaysdata.net/economy/?type=progress&uid=${uid}&event_1=dice&limit_1=20&time_1=180`;
+      const infoUrl = `https://mahimcraft.alwaysdata.net/economy/?type=progress&uid=${uid}&event_1=dice&limit_1=20`;
       const res = await axios.get(infoUrl);
       if (res.data.status === "success") {
         const prog = res.data.progress.dice;
@@ -69,9 +69,9 @@ module.exports.run = async function ({ api, event, args }) {
     const bet = betInfo.formatted; 
     
     // --- API DEDUCT + LIMITS ENFORCEMENT ---
-    const deductUrl = `https://mahimcraft.alwaysdata.net/economy/?type=deduct&uid=${uid}&quantity=${bet}&notes=Dice+Bet&min=1K&max=20M&event=dice&limit=20&time=180`;
+    const deductUrl = `https://mahimcraft.alwaysdata.net/economy/?type=deduct&uid=${uid}&quantity=${bet}&notes=Dice+Bet&min=1K&max=20M&event=dice&limit=20`;
     const deductRes = await axios.get(deductUrl);
-    if (deductRes.data.status !== "success") return api.sendMessage(`⚠️ | ${toSansBold(deductRes.data.message)}`, event.threadID, event.messageID);
+    if (deductRes.data.status !== "success") return api.sendMessage(deductRes.data.message, event.threadID, event.messageID);
 
     // --- 60% WIN CHANCE ---
     const isWin = Math.random() < 0.60; 
@@ -83,23 +83,24 @@ module.exports.run = async function ({ api, event, args }) {
       playerRoll = randomInt(1, 3); botRoll = randomInt(4, 6);
     }
 
-    // --- PURE PROFIT PAYOUT ---
-    let profitMultiplier = 1; 
+    // --- TOTAL PAYOUT CALCULATION ---
+    let totalPayoutMultiplier = 2; // In Dice, a win pays exactly 2X the bet (Refunds bet + 1X profit)
+    let payoutAmountStr = validateAndNormalize(bet, totalPayoutMultiplier).formatted;
+
     if (isWin) {
-      const totalPayoutMultiplier = profitMultiplier + 1; // Refund 1x + Profit 1x
-      const payoutAmount = validateAndNormalize(bet, totalPayoutMultiplier).formatted;
-      const addUrl = `https://mahimcraft.alwaysdata.net/economy/?type=add&uid=${uid}&quantity=${payoutAmount}&notes=Dice+Win`;
+      // Add the Total Payout (2X) back to the user's balance
+      const addUrl = `https://mahimcraft.alwaysdata.net/economy/?type=add&uid=${uid}&quantity=${payoutAmountStr}&notes=Dice+Win`;
       await new Promise(resolve => setTimeout(resolve, 2000));
       await axios.get(addUrl);
     }
 
-    const profitAmountStr = validateAndNormalize(bet, profitMultiplier).formatted;
     let msg = `🎲 ${toSansBold("DICE ROLL")} 🎲\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n`;
     msg += ` 👤 ${toSansBold("You")}: ${getDiceFace(playerRoll)} [${toBoldNum(playerRoll)}]\n`;
     msg += ` 🤖 ${toSansBold("Bot")}: ${getDiceFace(botRoll)} [${toBoldNum(botRoll)}]\n┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n`;
     
     if (isWin) {
-      msg += `✅ 𝐘𝐎𝐔 𝐖𝐎𝐍!\n➕ 💲${profitAmountStr} (${toSansBold("Pure Profit")})`;
+      // Shows the Total Amount Received (e.g. ➕ 💲2M)
+      msg += `✅ 𝐘𝐎𝐔 𝐖𝐎𝐍!\n➕ 💲${payoutAmountStr}`; 
     } else {
       msg += `📛 𝐘𝐎𝐔 𝐋𝐎𝐒𝐓!\n➖ 💲${bet}`;
     }
