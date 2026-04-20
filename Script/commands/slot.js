@@ -1,66 +1,74 @@
 const axios = require("axios");
 
-// Helper function to shuffle an array
-const shuffle = (array) => array.sort(() => Math.random() - 0.5);
+// Shuffle
+const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
 
-// Allowed suffixes mapped in order (Up to GG / Googol)
+// Valid suffixes
 const SUFFIXES = [
-  "", "K", "M", "B", "T", "QA", "QI", "SX", "SP", "OC", "NO", "D", 
-  "UD", "DD", "TD", "QAD", "QID", "SXD", "SPD", "OCD", "NOD", "VG", 
-  "UVG", "DVG", "TVG", "QAVG", "QIVG", "SXVG", "SPVG", "OCVG", "NOVG", 
-  "TG", "UTG", "DTG", "GG"
+  "", "K", "M", "B", "T",
+  "QA", "QI", "SX", "SP",
+  "O", "N", "D",
+  "UD", "DD", "TD",
+  "QAD", "QID", "SXD", "SPD",
+  "OD", "ND",
+  "V", "UV", "DV", "TV",
+  "QAV", "QIV", "SXV", "SPV",
+  "OV", "NV",
+  "TG", "UTG", "GG"
 ];
 
-const SUFFIX_FORMATTED = [
-  "", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "D", 
-  "Ud", "Dd", "Td", "Qad", "Qid", "Sxd", "Spd", "Ocd", "Nod", "Vg", 
-  "Uvg", "Dvg", "Tvg", "Qavg", "Qivg", "Sxvg", "Spvg", "Ocvg", "Novg", 
-  "Tg", "Utg", "Dtg", "GG"
+const FORMAT = [
+  "", "K", "M", "B", "T",
+  "Qa", "Qi", "Sx", "Sp",
+  "O", "N", "D",
+  "Ud", "Dd", "Td",
+  "Qad", "Qid", "Sxd", "Spd",
+  "Od", "Nd",
+  "V", "Uv", "Dv", "Tv",
+  "Qav", "Qiv", "Sxv", "Spv",
+  "Ov", "Nv",
+  "Tg", "Utg", "GG"
 ];
 
-// Smart Math & Validation Engine
-const validateAndNormalize = (amountStr, multiplier = 1) => {
-  const cleanStr = String(amountStr).replace(/,/g, '').trim();
-  const match = cleanStr.match(/^([0-9.]+)([a-zA-Z]*)$/);
-  
+// Normalize amount
+function money(value, multi = 1) {
+  const txt = String(value).replace(/,/g, "").trim();
+  const match = txt.match(/^([0-9.]+)([a-zA-Z]*)$/);
+
   if (!match) return { valid: false };
-  
+
   let num = parseFloat(match[1]);
   let suffix = match[2].toUpperCase();
-  
+
   let index = SUFFIXES.indexOf(suffix);
-  if (index === -1) return { valid: false }; // Blocks invalid types like "100bm"
-  
-  // Multiply the base number
-  num *= multiplier;
-  
-  // Normalize upwards (e.g., 1000M -> 1B or 1000Dtg -> 1GG)
+  if (index === -1 || isNaN(num) || num <= 0) return { valid: false };
+
+  num *= multi;
+
   while (num >= 1000 && index < SUFFIXES.length - 1) {
     num /= 1000;
     index++;
   }
-  
-  // Normalize downwards (e.g., 0.5M -> 500K)
-  while (num > 0 && num < 1 && index > 0) {
+
+  while (num < 1 && index > 0) {
     num *= 1000;
     index--;
   }
-  
-  // Format to avoid long decimals (e.g., 1.555 -> 1.56)
+
   num = Number(num.toFixed(2));
-  
-  return { 
-    valid: true, 
-    formatted: `${num}${SUFFIX_FORMATTED[index]}` 
+
+  return {
+    valid: true,
+    formatted: `${num}${FORMAT[index]}`
   };
-};
+}
 
 module.exports.config = {
   name: "slot",
-  version: "1.1.1",
+  version: "5.0.0",
   hasPermssion: 0,
   credits: "MAHIM ISLAM",
-  description: "Play the slot machine (Strict 50% win chance, Up to Googol)",
+  description: "Slot machine game",
   commandCategory: "games",
   usages: "[amount]",
   cooldowns: 5
@@ -68,87 +76,121 @@ module.exports.config = {
 
 module.exports.run = async function ({ api, event, args }) {
   try {
-    const rawBet = args[0];
-    if (!rawBet) return api.sendMessage("⚠️ | 𝐄𝐧𝐭𝐞𝐫 𝐛𝐞𝐭 𝐚𝐦𝐨𝐮𝐧𝐭.", event.threadID, event.messageID);
+    const betRaw = args[0];
 
-    // Validate and format the user's bet
-    const betInfo = validateAndNormalize(rawBet, 1);
-    if (!betInfo.valid) {
-      return api.sendMessage("⚠️ | 𝐈𝐧𝐯𝐚𝐥𝐢𝐝 𝐚𝐦𝐨𝐮𝐧𝐭 𝐭𝐲𝐩𝐞! 𝐏𝐥𝐞𝐚𝐬𝐞 𝐮𝐬𝐞 𝐯𝐚𝐥𝐢𝐝 𝐬𝐮𝐟𝐟𝐢𝐱𝐞𝐬 (𝐞.𝐠., 𝐊, 𝐌, 𝐁... 𝐮𝐩 𝐭𝐨 𝐆𝐆).", event.threadID, event.messageID);
+    if (!betRaw) {
+      return api.sendMessage(
+        "⚠️ | 𝐄𝐧𝐭𝐞𝐫 𝐛𝐞𝐭 𝐚𝐦𝐨𝐮𝐧𝐭.",
+        event.threadID,
+        event.messageID
+      );
     }
 
-    const bet = betInfo.formatted; 
+    const betData = money(betRaw);
+
+    if (!betData.valid) {
+      return api.sendMessage(
+        "⚠️ | 𝐈𝐧𝐯𝐚𝐥𝐢𝐝 𝐚𝐦𝐨𝐮𝐧𝐭.",
+        event.threadID,
+        event.messageID
+      );
+    }
+
+    const bet = betData.formatted;
     const uid = event.senderID;
-    
-    // Step 1: Deduct the bet FIRST
-    const deductUrl = `https://mahimcraft.alwaysdata.net/economy/?type=deduct&uid=${uid}&quantity=${bet}&notes=Slot+Bet`;
-    const deductRes = await axios.get(deductUrl);
-    
-    if (deductRes.data.status !== "success") {
-      return api.sendMessage(`⚠️ | ${deductRes.data.message}`, event.threadID, event.messageID);
+
+    // Deduct first
+    const deduct = await axios.get(
+      `https://mahimcraft.alwaysdata.net/economy/?type=deduct&uid=${uid}&quantity=${bet}&notes=Slot+Bet`
+    );
+
+    if (deduct.data.status !== "success") {
+      return api.sendMessage(
+        deduct.data.message,
+        event.threadID,
+        event.messageID
+      );
     }
 
-    // Step 2: STRICT 50% Win Chance
-    const isWin = Math.random() < 0.5; 
-    let profitMultiplier = 0;
-    
-    const slots = ["🍒", "🍇", "🍉", "🍓", "🍋", "🔔", "💎"];
+    const icons = ["🍒", "🍇", "🍉", "🍓", "🍋", "🔔", "💎"];
+
+    // 60% win
+    const isWin = Math.random() < 0.60;
+
     let e1, e2, e3;
+    let profitX = 0;
 
-    if (!isWin) {
-      const shuffled = shuffle([...slots]);
-      e1 = shuffled[0]; e2 = shuffled[1]; e3 = shuffled[2];
-    } else {
-      const isJackpot = Math.random() < 0.2; 
-      const shuffled = shuffle([...slots]);
-      
-      if (isJackpot) {
-        profitMultiplier = 3;
-        e1 = shuffled[0]; e2 = shuffled[0]; e3 = shuffled[0];
-      } else {
-        profitMultiplier = 2;
-        e1 = shuffled[0]; e2 = shuffled[0]; e3 = shuffled[1];
-      }
-    }
-
-    // Step 3: Smart Winnings Payout
     if (isWin) {
-      const totalPayoutMultiplier = profitMultiplier + 1; 
-      const payoutAmount = validateAndNormalize(bet, totalPayoutMultiplier).formatted;
-      
-      const addUrl = `https://mahimcraft.alwaysdata.net/economy/?type=add&uid=${uid}&quantity=${payoutAmount}&notes=Slot+Win`;
-      
-      // DELAY 2 seconds to ensure database writes safely
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      const addRes = await axios.get(addUrl);
-      
-      if (addRes.data.status !== "success") {
-        return api.sendMessage(`⚠️ | 𝐄𝐫𝐫𝐨𝐫 𝐚𝐝𝐝𝐢𝐧𝐠 𝐰𝐢𝐧𝐧𝐢𝐧𝐠𝐬: ${addRes.data.message}`, event.threadID, event.messageID);
+      // 20% jackpot from wins
+      const isJackpot = Math.random() < 0.20;
+      const pick = shuffle(icons);
+
+      if (isJackpot) {
+        e1 = pick[0];
+        e2 = pick[0];
+        e3 = pick[0];
+        profitX = 3;
+      } else {
+        e1 = pick[0];
+        e2 = pick[0];
+        e3 = pick[1];
+        profitX = 2;
       }
+
+      // Add reward safely
+      const reward = money(bet, profitX + 1);
+
+      if (!reward.valid) {
+        throw new Error("Reward parse failed");
+      }
+
+      const add = await axios.get(
+        `https://mahimcraft.alwaysdata.net/economy/?type=add&uid=${uid}&quantity=${reward.formatted}&notes=Slot+Win`
+      );
+
+      if (add.data.status !== "success") {
+        return api.sendMessage(
+          "⚠️ | Reward failed.",
+          event.threadID,
+          event.messageID
+        );
+      }
+
+    } else {
+      const pick = shuffle(icons);
+      e1 = pick[0];
+      e2 = pick[1];
+      e3 = pick[2];
     }
 
-    // Step 4: Formatting the NARROW mobile-friendly output
-    const profitAmountStr = validateAndNormalize(bet, profitMultiplier).formatted;
+    const profit = money(bet, profitX).formatted;
 
     let msg = `🎰 𝐒𝐋𝐎𝐓 𝐌𝐀𝐂𝐇𝐈𝐍𝐄 🎰\n`;
-    msg += `┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n`;
+    msg += `┈┈┈┈┈┈┈┈┈┈┈┈\n`;
     msg += ` ► [ ${e1} | ${e2} | ${e3} ] ◄\n`;
-    msg += `┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈\n`;
-    
+    msg += `┈┈┈┈┈┈┈┈┈┈┈┈\n`;
+
     if (isWin) {
-      if (profitMultiplier === 3) {
-        msg += `🎉 𝐉𝐀𝐂𝐊𝐏𝐎𝐓! (𝟑𝐗)\n➕ 💲${profitAmountStr}`;
+      if (profitX === 3) {
+        msg += `🎉 𝐉𝐀𝐂𝐊𝐏𝐎𝐓! (3X)\n`;
       } else {
-        msg += `✅ 𝐘𝐎𝐔 𝐖𝐎𝐍! (𝟐𝐗)\n➕ 💲${profitAmountStr}`;
+        msg += `✅ 𝐘𝐎𝐔 𝐖𝐎𝐍! (2X)\n`;
       }
+
+      msg += `➕ 💲${profit}`;
     } else {
-      msg += `📛 𝐘𝐎𝐔 𝐋𝐎𝐒𝐓!\n➖ 💲${bet}`;
+      msg += `📛 𝐘𝐎𝐔 𝐋𝐎𝐒𝐓!\n`;
+      msg += `➖ 💲${bet}`;
     }
 
     return api.sendMessage(msg, event.threadID, event.messageID);
 
-  } catch (error) {
-    console.error(error);
-    return api.sendMessage("❌ | 𝐄𝐫𝐫𝐨𝐫 𝐨𝐜𝐜𝐮𝐫𝐫𝐞𝐝.", event.threadID, event.messageID);
+  } catch (err) {
+    console.log(err);
+    return api.sendMessage(
+      "❌ | Error occurred.",
+      event.threadID,
+      event.messageID
+    );
   }
 };
